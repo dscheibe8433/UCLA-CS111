@@ -21,7 +21,8 @@ execute_command (command_t c, bool time_travel)
 {
 	//Need to write implentation for simple command execution first
 	//We can then use a recursive call to execute_command to execute other commands.
-
+	//Should execute the command and then set the process's status so that it can return
+	//the correct value.
 
 	switch( c->type ){
 	case SIMPLE_COMMAND:
@@ -79,8 +80,13 @@ execute_command (command_t c, bool time_travel)
 	case OR_COMMAND:
 		break;
 	case SEQUENCE_COMMAND:
+		execute_command(c->u.command[0], time_travel);
+		execute_command(c->u.command[1], time_travel);
+		c->status = c->u.command[1]->status;
 		break;
 	case SUBSHELL_COMMAND:
+		execute_command(c->u.subshell_command, false);
+		c->status = c->u.subshell_command->status;
 		break;
 	case PIPE_COMMAND:
 		break;
