@@ -9,7 +9,8 @@
    static function definitions, etc.  */
 
 #include <unistd.h>
-
+#include <sys/wait.h>
+#include <fcnt1.h>
 int
 command_status (command_t c)
 {
@@ -23,7 +24,9 @@ execute_command (command_t c, bool time_travel)
 	//We can then use a recursive call to execute_command to execute other commands.
 	//Should execute the command and then set the process's status so that it can return
 	//the correct value.
-
+        pid_t child;
+        int child_status; 
+	
 	switch( c->type ){
 	case SIMPLE_COMMAND:
 		
@@ -67,6 +70,8 @@ execute_command (command_t c, bool time_travel)
 		}
 		else if (child > 0) // parent process
 		{
+		  waitpid(child, &child_status, 0);
+		  c->status = child_status;
 			//PARENT PROCESS STUFF
 		}
 		else
@@ -75,9 +80,23 @@ execute_command (command_t c, bool time_travel)
 		}
 		break;
 
-	case AND_COMMAND:
+	case AND_COMMAND: //return status of cmd[0] if false, else cmd[1] status if cmd[0] is true
+	        execute_command(c->u.command[0], time_travel);
+		c->status = c->u.command[0]->status;
+		if ( c->status == 0 )
+	        {
+		  execute_command(c->u.command[1], time_travel);
+		  c->status = c->u.command[1]->status;
+		}
 		break;
-	case OR_COMMAND:
+	case OR_COMMAND: //return status of cmd[0] if true, else return cmd[1] status
+	        execute_command(c->u.command[0], time_travel);
+		c->status = c->u.command[0]->status;
+		if ( c->status != 0 )
+		{
+		  execute_command(c->u.command[1], time_travel);
+		  c->status = c->u.command[1]->status;
+		}
 		break;
 	case SEQUENCE_COMMAND:
 		execute_command(c->u.command[0], time_travel);
