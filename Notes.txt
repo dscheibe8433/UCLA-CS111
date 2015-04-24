@@ -38,6 +38,9 @@ struct command
 EXECUTING THE COMMANDS:
 
 - Implement how to execute a simple command
+- http://pubs.opengroup.org/onlinepubs/7908799/xsh/unistd.h.html
+- http://www.delorie.com/gnu/docs/glibc/libc_568.html
+- http://www.csl.mtu.edu/cs4411.ck/www/NOTES/process/fork/exec.html
 - Other commands can use the simple command execution to execute their commands
 - execvp(const char* file, char* const arv)
 	~ file is probably going to be word[0], and arguments in word. For example:
