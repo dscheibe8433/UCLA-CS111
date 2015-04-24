@@ -10,8 +10,6 @@
 
 #include <unistd.h>
 
-#define DEBUG 1
-
 int
 command_status (command_t c)
 {
@@ -21,17 +19,10 @@ command_status (command_t c)
 void
 execute_command (command_t c, bool time_travel)
 {
-  if ( DEBUG == 1)
-    printf("Beginning of execute_command");
-  
 	//Need to write implentation for simple command execution first
 	//We can then use a recursive call to execute_command to execute other commands.
-<<<<<<< HEAD
-  int status_to_return;
-=======
 	//Should execute the command and then set the process's status so that it can return
 	//the correct value.
->>>>>>> dd3c6a639c807761153ccbfc50375e53fb5d2d2b
 
 	switch( c->type ){
 	case SIMPLE_COMMAND:
@@ -76,36 +67,14 @@ execute_command (command_t c, bool time_travel)
 		}
 		else if (child > 0) // parent process
 		{
-		  waitpid(child, &status, 0);
-		  c->status = status;//PARENT PROCESS STUFF
+			//PARENT PROCESS STUFF
 		}
 		else
 		{
-		  //NO CHILD PROCESS CREATED
+			//NO CHILD PROCESS CREATED
 		}
 		break;
 
-<<<<<<< HEAD
-	case AND_COMMAND: // AND COMMAND
-	        execute_command(c->u.command[0], time_travel);
-		c->status = c->u.command[0]->status;
-		if (c->status == 0) // set status of AND command. Equals second command if 1st is true
-		{
-		    execute_command(c->u.command[1], time_travel);
-		    c->status = c->command[1]->status;
-		}
-		break;
-	case OR_COMMAND: // OR COMMAND
-	        execute_command(c->u.command[0], time_travel);
-		c->status = c->u.command[0]->status;
-		if (c->status != 0) // set status of AND command. Equals 1st command if its true, second if not
-		{
-		  execute_command(c->u.command[1], time_travel);
-		  c->status = c->u.command[1]->status;
-		}
-	        break;
-	case SEQUENCE_COMMAND:  // SEQUENCE COMMAND
-=======
 	case AND_COMMAND:
 		break;
 	case OR_COMMAND:
@@ -118,13 +87,8 @@ execute_command (command_t c, bool time_travel)
 	case SUBSHELL_COMMAND:
 		execute_command(c->u.subshell_command, false);
 		c->status = c->u.subshell_command->status;
->>>>>>> dd3c6a639c807761153ccbfc50375e53fb5d2d2b
 		break;
-	case SUBSHELL_COMMAND:  //SUBSHELL COMMAND. execute subshell command[0] and update status
-	        execute_command(c->u.subshell_command, 0);
-		c->status = c->u.subshell_command->status);
-	        break;
-        case PIPE_COMMAND:  //PIPE COMMAND
+	case PIPE_COMMAND:
 		break;
 	default:
 		//NOT A VALID COMMAND TYPE
