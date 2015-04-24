@@ -26,32 +26,66 @@ execute_command (command_t c, bool time_travel)
 	switch( c->type ){
 	case SIMPLE_COMMAND:
 		
-		//If there is an input redirection
-		if( input != 0 )
+		// create child to execute command
+		child = fork();
+		
+		if (child == 0) // child process
 		{
-			int fd = open( input, O_RDONLY, 0444 );
-			if ( fd < 0 )
+
+			//If there is an input redirection
+			if( c->input != 0 )
 			{
-				//Is trying to read from a file that doesn't exist
-				return;
+				int fd = open( c->input, O_RDONLY, 0444 );
+				if ( fd < 0 )
+				{
+					//Is trying to read from a file that doesn't exist
+					return;
+				}
+
+				if(dup2(fd, 0) < 0 ) //Changes the standard input to read from this file.
+				{
+					return;
+				}
+
+				close(fd);
+			}
+			//If there is an output redirection
+			if( c->output != 0 )
+			{
+				int fd = open( c->output, O_CREAT|O_TRUNC|O_WRONLY, 0644 );
+				if ( fd < 0 ) 
+					return;
+				if(dup2(fd, 1) < 0) //redirects the output to the file specified
+				{
+					return;
+				}
+				close(fd);
 			}
 
-			dup2(fd, 0); //Changes the standard input to read from this file.
+			execvp( c->u.word[0], c->u.word );
 		}
-		//If there is an output redirection
-		if( output != 0 )
+		else if (child > 0) // parent process
 		{
-			int fd = open( output, O_CREAT|O_TRUNC|O_WRONLY, 0644 );
-			if ( fd < 0 ) 
-				return;
-			dup2(fd, 1); //redirects the output to the file specified
+			//PARENT PROCESS STUFF
 		}
+		else
+		{
+			//NO CHILD PROCESS CREATED
+		}
+		break;
 
-		execvp( word[0], word );
-
-		
+	case AND_COMMAND:
+		break;
+	case OR_COMMAND:
+		break;
+	case SEQUENCE_COMMAND:
+		break;
+	case SUBSHELL_COMMAND:
+		break;
+	case PIPE_COMMAND:
+		break;
 	default:
-
+		//NOT A VALID COMMAND TYPE
 	}
 
   error (1, 0, "command execution not yet implemented");
