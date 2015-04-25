@@ -1,11 +1,8 @@
-This is a skeleton for CS 111 Lab 1.
+CS 111 Lab 1b 4.24.2015
 
 David Scheibe 004124290
 Mignon Huang 904252278
- 
 
-Replace this README file with notes on your implementation.
-Mentions any special features or limitations.
 
 There is a debugging system where we can set DEBUG to be one, to print out
 the statements and observe what is happening. 
@@ -18,4 +15,56 @@ to implement for dynamic sizes.
 All tests pass with no temp folder being created for the test.out, test.err, and test.sh
 files so we know that we passed.
 
-Github test
+We also added a simple implementation of execute_command, creating forks for 
+SEQUENCE_COMMAND and PIPE_COMMAND
+
+The test cases we used can be found in the file test-lab1b.sh, which is also included
+below:
+
+#! /bin/sh
+
+tmp=$0-$$.tmp
+mkdir "$tmp" || exit
+
+(
+cd "$tmp" || exit
+
+cat > test.sh << 'EOF'
+echo a
+(echo b) && false || echo c
+echo d | cat
+echo e | cat ; echo f; echo g    
+echo j && echo k || echo l ; echo m
+
+mv fileA fileB
+pwd | sort | cat > v    
+
+echo write this to file > testfile.txt
+cat testfile.txt
+EOF
+
+cat > test.exp <<'EOF'
+a
+b
+c
+d
+e
+f
+g
+j
+k
+m
+write this to file
+EOF
+
+../timetrash test.sh> test.out 2>test.err || exit
+
+diff -u test.exp test.out || exit
+test ! -s test.err || {
+    cat test.err
+    exit 1
+}
+
+) || exit
+
+rm -fr "$tmp"
