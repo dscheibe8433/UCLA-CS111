@@ -42,12 +42,14 @@ execute_command (command_t c, bool time_travel)
 				int fd = open( c->input, O_RDONLY, 0444 );
 				if ( fd < 0 )
 				{
+				  error(1, 0, "File does not exit\n");
 					//Is trying to read from a file that doesn't exist
 					return;
 				}
 
 				if(dup2(fd, 0) < 0 ) //Changes the standard input to read from this file.
 				{
+				  error(1, 0, "Error changing standard input for reading from file\n");
 					return;
 				}
 
@@ -61,12 +63,14 @@ execute_command (command_t c, bool time_travel)
 					return;
 				if(dup2(fd, 1) < 0) //redirects the output to the file specified
 				{
+				  error(1, 0, "Error redirecting output to file\n");
 					return;
 				}
 				close(fd);
 			}
-
+			
 			execvp( c->u.word[0], c->u.word );
+			error(1, 0, "Error executing c->u.word[0]\n");
 		}
 		else if (child > 0) // parent process
 		{
@@ -76,6 +80,7 @@ execute_command (command_t c, bool time_travel)
 		}
 		else
 		{
+		  error(1, 0, "Error creating child through fork()\n");
 			//NO CHILD PROCESS CREATED
 		}
 		break;
@@ -100,9 +105,13 @@ execute_command (command_t c, bool time_travel)
 		break;
 	case SEQUENCE_COMMAND:
 		execute_command(c->u.command[0], time_travel);
-		execute_command(c->u.command[1], time_travel);
-		c->status = c->u.command[1]->status;
-		break;
+		c->status = c->u.command[0]->status;
+		if (c->u.command[1] != 0)
+	        {
+		    execute_command(c->u.command[1], time_travel);
+		    c->status = c->u.command[1]->status;
+        	}
+              	break;
 	case SUBSHELL_COMMAND:
 		execute_command(c->u.subshell_command, false);
 		c->status = c->u.subshell_command->status;
