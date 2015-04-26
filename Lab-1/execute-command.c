@@ -7,7 +7,7 @@
 
 /* FIXME: You may need to add #include directives, macro definitions,
    static function definitions, etc.  */
-
+#include <stdlib.h>
 #include <unistd.h>
 #include <sys/wait.h>
 #include <fcntl.h>
@@ -126,8 +126,8 @@ execute_command (command_t c, bool time_travel)
 	case PIPE_COMMAND:
 		if(pipe(fd) < 0)
 			error(1, 0, "Error creating pipe\n");
-		int firstpid = fork();
-
+		pid_t firstpid = fork();
+	        
 		if (firstpid == 0)
 		{
 			//Child process will execute right command
@@ -137,6 +137,7 @@ execute_command (command_t c, bool time_travel)
 			execute_command( c->u.command[1], time_travel );
 			c->status = c->u.command[1]->status;
 			close(fd[READ]);
+			exit(c->status);
 		}
 
 		else if (firstpid > 0)
@@ -172,7 +173,7 @@ execute_command (command_t c, bool time_travel)
 		{
 			error(1, 0, "Error creating first child process\n");
 		}
-
+		
 		break;
 
 	default:
