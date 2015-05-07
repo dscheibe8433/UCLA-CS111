@@ -30,8 +30,8 @@
 /*	----------- Structure for Queue --------------  */
 
 typedef struct{
-	struct command_list* front;
-	struct command_list* end;
+	struct GraphNode* front;
+	struct GraphNode* end;
 } Queue;
 
 bool QueueIsEmpty(Queue* q)
@@ -42,8 +42,9 @@ bool QueueIsEmpty(Queue* q)
 void Queue_Insert(Queue* q, command_t command)
 {
 	//Make a new command_list node first
-	struct command_list* toAdd = (command_list*)checked_malloc(sizeof(struct command_list));
+	struct GraphNode* toAdd = (GraphNode*)checked_malloc(sizeof(GraphNode));
 	toAdd->command = command;
+	toAdd->pid = -1;
 	toAdd->next = NULL;
 
 	if(QueueIsEmpty(q))
@@ -58,7 +59,7 @@ void Queue_Insert(Queue* q, command_t command)
 struct command_t Queue_Next(Queue* q)
 {
 	command_t next;
-	command_list* toRemove;
+	GraphNode* toRemove;
 	if(QueueIsEmpty(q))
 		return NULL;
 	else if(q->front == q->end) //Last node left
@@ -89,8 +90,10 @@ typedef struct{
 
 typde struct{
 	command_t command;
-	struct Graph_Node** before;
-	pid_t pid;
+	struct GraphNode** before;		//Is an array of GraphNode pointers
+	int before_size;				//The size of the array 'before'
+	pid_t pid;						//Initialized to -1
+	GraphNode* next;				//Each one is also a node in the Queue or linked list
 } GraphNode;
 
 /*	----------- Stuff from 1a --------------  */

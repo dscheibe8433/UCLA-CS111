@@ -184,3 +184,62 @@ execute_command (command_t c, bool time_travel)
 	}
 
 }
+
+void executeGraph(Dependency_Graph* graph){
+	executeNoDependencies(graph->no_dependencies);
+	executeDependencies(graph->dependencies);
+}
+
+void executeNoDependencies(Queue* no_dependencies){
+	GraphNode* iter = no_dependencies->front;
+	while(iter != no_dependencies->end)
+	{
+		pid_t pid = fork();
+
+		if(pid == 0)
+			execute_command(iter->command, true);
+		else if(pid > 0)
+			iter->pid = pid;
+		else
+			error(1, errno, "could not fork");
+		
+		iter = iter->next;
+	}
+}
+
+void executeDependencies(Queue* dependencies)
+{
+	GraphNode* iter = dependencies->front;
+	while(iter != dependencies->end)
+	{
+		/* Wait for processes in graph node's before list to start */
+		GraphNode* i = iter->before;
+		
+		for( int i = 0; i < iter->before_size; i++ ){
+			while (iter->before[i]->pid == -1)
+				continue;
+		}
+
+		/* Wait for process in current graph node's before list to finish */
+		int status;
+
+		for(int i = 0; i < iter->before_size; i++){
+			waitpid(iter->before[i]->pid, &status, 0);
+		}
+
+
+		/* After processes in before list finish, can run yourself */
+		pid_t pid = fork();
+		if(pid == 0){
+			execute_command(iter->command);
+			_exit(0);
+		}
+		else if (pid > 0)
+			temp->pid = pid;
+		else
+			error(1, errno, "could not fork");
+
+
+		iter = iter->next;
+	}
+}
