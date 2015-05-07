@@ -27,13 +27,83 @@
    complete the incomplete type declaration in command.h.  */
 
 
-//My list of command trees
+/*	----------- Structure for Queue --------------  */
+
+typedef struct{
+	struct command_list* front;
+	struct command_list* end;
+} Queue;
+
+bool QueueIsEmpty(Queue* q)
+{
+	return (q->front == NULL);
+}
+
+void Queue_Insert(Queue* q, command_t command)
+{
+	//Make a new command_list node first
+	struct command_list* toAdd = (command_list*)checked_malloc(sizeof(struct command_list));
+	toAdd->command = command;
+	toAdd->next = NULL;
+
+	if(QueueIsEmpty(q))
+	{
+		q->front = toAdd;
+		q->end = toAdd;
+	}
+	q->end->next = toAdd;
+	q->end = toAdd;
+}
+
+struct command_t Queue_Next(Queue* q)
+{
+	command_t next;
+	command_list* toRemove;
+	if(QueueIsEmpty(q))
+		return NULL;
+	else if(q->front == q->end) //Last node left
+	{
+		toRemove = q->front;
+		q->front = NULL;
+		q->end = NULL;
+	}
+	else
+	{
+		toRemove = q->front;
+		q->front = q->front->next;
+	}
+
+	next = toRemove->command;
+	free(toRemove);
+
+	return result;
+}
+
+
+/*	----------- Structure for Dependency_Graph --------------  */
+
+typedef struct{
+	Queue* no_dependencies;
+	Queue* dependencies;
+}Dependency_Graph;
+
+typde struct{
+	command_t command;
+	struct Graph_Node** before;
+	pid_t pid;
+} GraphNode;
+
+/*	----------- Stuff from 1a --------------  */
+
+//Nodes of command_stream
 struct command_list
 {
   command_t command;
   struct command_list *next;
 };
 
+
+//Linked list of command trees
 struct command_stream
 {
   struct command_list *start;
