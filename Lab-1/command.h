@@ -24,3 +24,9 @@ void execute_command (command_t, bool);
 /* Return the exit status of a command, which must have previously
    been executed.  Wait for the command, if it is not already finished.  */
 int command_status (command_t);
+
+typedef struct ListNode *ListNode;
+typedef struct GraphNode *GraphNode;
+typedef struct DependencyGraph *DependencyGraph;
+
+DependencyGraph createGraph(command_stream_t c_stream);
