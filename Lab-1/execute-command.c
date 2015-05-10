@@ -505,7 +505,8 @@ void executeDependencies(Queue* dependencies)
 }
 
 
-void executeGraph(DependencyGraph* graph){
+int executeGraph(DependencyGraph_t graph){
   executeNoDependencies(graph->no_dependencies);
   executeDependencies(graph->dependencies);
+  return 1;
 }
