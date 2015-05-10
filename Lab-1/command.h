@@ -29,4 +29,4 @@ typedef struct ListNode *ListNode_t;
 typedef struct GraphNode *GraphNode_t;
 typedef struct DependencyGraph *DependencyGraph_t;
 
-DependencyGraph createGraph(command_stream_t c_stream);
+DependencyGraph_t createGraph(command_stream_t c_stream);

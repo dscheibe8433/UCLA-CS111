@@ -13,6 +13,7 @@
 #include <fcntl.h>
 #include <sys/types.h>
 #include <sys/stat.h>
+#include <string.h>
 
 #define BUFFER_SIZE 100
 
@@ -79,21 +80,21 @@ command_t Queue_Next(Queue* q) {
 }
 
 
-typedef struct{
+typedef struct DependencyGraph{
   Queue* no_dependencies;
   Queue* dependencies;
   int nodep_size;
   int dep_size;
   int nodep_buffer;
   int dep_buffer;
-}Dependency_Graph;
+}DependencyGraph;
 
 
 void insertGraphNode(GraphNode_t gn, GraphNode_t new_node)
 {
   if(gn->before == NULL)
     {
-      gn->before = (GraphNode *) malloc(sizeof(GraphNode) * gn->buffer);
+      gn->before = (GraphNode_t *) malloc(sizeof(struct GraphNode) * gn->buffer);
       if (gn->before == NULL)
 	{
 	  error(1,0,"malloc error");
@@ -103,11 +104,11 @@ void insertGraphNode(GraphNode_t gn, GraphNode_t new_node)
   else if (gn->before_size == gn->buffer)
     {
       gn->buffer = gn->buffer * 2;
-      gn->before = (GraphNode *) realloc(gn->before, sizeof(GraphNode) * gn->buffer);
+      gn->before = (GraphNode_t *) realloc(gn->before, sizeof(struct GraphNode) * gn->buffer);
       if (gn->before == NULL)
 	{
 	  error(1,0,"Realloc error");
-	  exit(-1)
+	  exit(-1);
 	}
     }
   gn->before[gn->before_size++] = new_node;
@@ -115,8 +116,8 @@ void insertGraphNode(GraphNode_t gn, GraphNode_t new_node)
 }
 
 typedef struct ListNode{
-  ListNode next;
-  GraphNode g_node;
+  ListNode_t next;
+  GraphNode_t g_node;
   char **read_list;
   char **write_list;
   int read_buffer;
@@ -171,15 +172,16 @@ void addToWriteList(ListNode_t lnode, char *s)
 	  exit(-1);
 	}
     }
-  lnode->write_list[ln->wl_size++] = s;
+  lnode->write_list[lnode->wl_size++] = s;
   return;
 }
 
-void processCommand(command_t command, ListNode lnode)
+void processCommand(command_t command, ListNode_t lnode)
 {
   if (command->type == SIMPLE_COMMAND)
     {
-      for (int i = 1; command->u.word[i] != NULL; i++)
+      int i;
+      for (i = 1; command->u.word[i] != NULL; i++)
 	{
 	  if (command->u.word[i][0] != '-')
 	    {
@@ -200,17 +202,19 @@ void processCommand(command_t command, ListNode lnode)
     }
   else
     {
-      processCommand(c->u.command[0], lnode);
-      processCommand(c->u.command[1], lnode);
+      processCommand(command->u.command[0], lnode);
+      processCommand(command->u.command[1], lnode);
     }
   return;
 }
 
 bool isDependent(char **list_a, int list_a_size, char **list_b, int list_b_size)
 {
-  for (int i = 0; i < list_a_size; i++)
+  int i;
+  int j;
+  for (i = 0; i < list_a_size; i++)
     {
-      for (int j = 0; j < list_b_size; j++)
+      for (j = 0; j < list_b_size; j++)
 	{
 	  if (strcmp(list_a[i], list_b[j]) == 0)
 	    return true;
@@ -219,9 +223,9 @@ bool isDependent(char **list_a, int list_a_size, char **list_b, int list_b_size)
   return false;
 }
 
-Dependency_Graph createGraph(command_stream_t c_stream)
+DependencyGraph_t createGraph(command_stream_t c_stream)
 {
-  Dependency_Graph d_graph = (Dependency_Graph) malloc(sizeof(Dependency_Graph));
+  DependencyGraph_t d_graph = (DependencyGraph_t) malloc(sizeof(struct DependencyGraph));
   d_graph->no_dependencies = NULL;
   d_graph->dependencies = NULL;
   d_graph->nodep_size = 0;
@@ -230,17 +234,17 @@ Dependency_Graph createGraph(command_stream_t c_stream)
   d_graph->dep_buffer = BUFFER_SIZE;
 
   command_t command;
-  ListNode list = NULL;
-  while ((c = read_command_stream(c_stream)))
+  ListNode_t list = NULL;
+  while ((command = read_command_stream(c_stream)))
     {
-      GraphNode g_node = (GraphNode) malloc(sizeof(GraphNode));
+      GraphNode_t g_node = (GraphNode_t) malloc(sizeof(struct GraphNode));
       g_node->command = command;
       g_node->before = NULL;     
       g_node->before_size = 0;
       g_node->pid = -1;               
       g_node->buffer = BUFFER_SIZE;
       
-      ListNode l_node = (ListNode) malloc(sizeof(ListNode));
+      ListNode_t l_node = (ListNode_t) malloc(sizeof(struct ListNode));
       l_node->next = NULL;
       l_node->g_node = g_node;
       l_node->read_list = NULL;
@@ -255,10 +259,10 @@ Dependency_Graph createGraph(command_stream_t c_stream)
       if (list != NULL)
 	l_node->next = list;
 
-      ListNode temp_list = l_node->next;
+      ListNode_t temp_list = l_node->next;
       while (temp_list != NULL)
 	{
-	  if (l_node->read_list != NULL && temp_list->write_list != NULL && isDependent(l_node->read_list, l_node->rl_size, temp->write_list, temp->wl_size))
+	  if (l_node->read_list != NULL && temp_list->write_list != NULL && isDependent(l_node->read_list, l_node->rl_size, temp_list->write_list, temp_list->wl_size))
 	    insertGraphNode(l_node->g_node, temp_list->g_node);
 	  else if (l_node->write_list != NULL && temp_list->read_list != NULL && isDependent(l_node->write_list, l_node->wl_size, temp_list->read_list, temp_list->rl_size))
 	    insertGraphNode(l_node->g_node, temp_list->g_node);
@@ -445,10 +449,6 @@ execute_command (command_t c, bool time_travel)
 
 }
 
-void executeGraph(Dependency_Graph* graph){
-	executeNoDependencies(graph->no_dependencies);
-	executeDependencies(graph->dependencies);
-}
 
 void executeNoDependencies(Queue* no_dependencies){
 	GraphNode* iter = no_dependencies->front;
@@ -461,7 +461,7 @@ void executeNoDependencies(Queue* no_dependencies){
 		else if(pid > 0)
 			iter->pid = pid;
 		else
-			error(1, errno, "could not fork");
+			error(1, 0, "could not fork");
 		
 		iter = iter->next;
 	}
@@ -502,4 +502,10 @@ void executeDependencies(Queue* dependencies)
 
 		iter = iter->next;
 	}
+}
+
+
+void executeGraph(DependencyGraph* graph){
+  executeNoDependencies(graph->no_dependencies);
+  executeDependencies(graph->dependencies);
 }
