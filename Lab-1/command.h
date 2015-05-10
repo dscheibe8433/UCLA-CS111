@@ -30,8 +30,5 @@ typedef struct GraphNode *GraphNode_t;
 typedef struct DependencyGraph *DependencyGraph_t;
 
 DependencyGraph_t createGraph(command_stream_t c_stream);
-<<<<<<< HEAD
-void executeGraph(DependencyGraph* graph);
-=======
 int executeGraph(DependencyGraph_t graph);
->>>>>>> origin/master
+
