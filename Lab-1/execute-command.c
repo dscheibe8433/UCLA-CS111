@@ -36,7 +36,10 @@ typedef struct Queue{
 
 bool QueueIsEmpty(Queue* q)
 {
-  return (q->front == NULL);
+	if(q == NULL)
+		return NULL;
+	else
+		return (q->front == NULL);
 }
 
 void Queue_Insert(Queue* q, command_t command)
@@ -47,18 +50,22 @@ void Queue_Insert(Queue* q, command_t command)
   toAdd->pid = -1;
   toAdd->next = NULL;
 
-  if(QueueIsEmpty(q))
-    {
-      q->front = toAdd;
-      q->end = toAdd;
-    }
-  q->end->next = toAdd;
-  q->end = toAdd;
+  if(q != 0){
+	  if(QueueIsEmpty(q))
+	  {
+		  q->front = toAdd;
+		  q->end = toAdd;
+	  }
+	  q->end->next = toAdd;
+	  q->end = toAdd;
+	}
 }
 
 command_t Queue_Next(Queue* q) {
   command_t next;
   GraphNode* toRemove;
+  if(q == 0)
+	  return NULL;
   if(QueueIsEmpty(q))
     return 0;
   else if(q->front == q->end) //Last node left
@@ -451,8 +458,10 @@ execute_command (command_t c, bool time_travel)
 
 
 void executeNoDependencies(Queue* no_dependencies){
+	if(no_dependencies == NULL)
+		return;
 	GraphNode* iter = no_dependencies->front;
-	while(iter != no_dependencies->end)
+	while(iter != NULL && iter != no_dependencies->end)
 	{
 		pid_t pid = fork();
 
@@ -469,6 +478,8 @@ void executeNoDependencies(Queue* no_dependencies){
 
 void executeDependencies(Queue* dependencies)
 {
+	if(dependencies == NULL)
+		return;
 	GraphNode* iter = dependencies->front;
 	while(iter != dependencies->end)
 	{
