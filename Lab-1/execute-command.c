@@ -114,7 +114,7 @@ void insertGraphNode(GraphNode_t gn, GraphNode_t new_node)
   return;
 }
 
-typedef struct{
+typedef struct ListNode{
   ListNode next;
   GraphNode g_node;
   char **read_list;
@@ -139,18 +139,18 @@ void addToReadList(ListNode_t lnode, char *s)
   else if (lnode->rl_size == lnode->read_buffer)
     {
       lnode->read_buffer = lnode->read_buffer * 2;
-      ln->read_list = (char **) realloc(sizeof(char *) * lnode->read_buffer);
+      lnode->read_list = (char **) realloc(lnode->read_list,sizeof(char *) * lnode->read_buffer);
       if (lnode->read_list == NULL)
 	{
 	  error(1,0,"malloc error");
 	  exit(-1);
 	}
     }
-  lnode->read_list[ln->rl_size++] = s;
+  lnode->read_list[lnode->rl_size++] = s;
   return;
 }
 
-void addToWriteList(ListNode lnode, char *s)
+void addToWriteList(ListNode_t lnode, char *s)
 {
   if (lnode->write_list == NULL)
     {
@@ -164,7 +164,7 @@ void addToWriteList(ListNode lnode, char *s)
   else if (lnode->wl_size == lnode->write_buffer)
     {
       lnode->write_buffer = lnode->write_buffer *2;
-      ln->write_list = (char **) realloc(sizeof(char *) * lnode->write_buffer);
+      lnode->write_list = (char **) realloc(lnode->write_list, sizeof(char *) * lnode->write_buffer);
       if (lnode->write_list == NULL)
 	{
 	  error(1,0,"malloc error");
