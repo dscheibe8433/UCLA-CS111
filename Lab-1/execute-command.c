@@ -18,7 +18,17 @@
 
 /*      ----------- Structure for Queue --------------  */
 
-typedef struct{
+typedef struct GraphNode{
+  command_t command;
+  struct GraphNode** before;       //Is an array of GraphNode pointers
+  int before_size;                 //The size of the array 'before'
+  pid_t pid;                       //Initialized to -1
+  int buffer;
+  struct GraphNode* next;
+}GraphNode;
+
+
+typedef struct Queue{
   struct GraphNode* front;
   struct GraphNode* end;
 } Queue;
@@ -31,7 +41,7 @@ bool QueueIsEmpty(Queue* q)
 void Queue_Insert(Queue* q, command_t command)
 {
   //Make a new command_list node first
-  struct GraphNode* toAdd = (GraphNode*)checked_malloc(sizeof(GraphNode));
+  struct GraphNode* toAdd = (GraphNode*)malloc(sizeof(GraphNode));
   toAdd->command = command;
   toAdd->pid = -1;
   toAdd->next = NULL;
@@ -45,17 +55,16 @@ void Queue_Insert(Queue* q, command_t command)
   q->end = toAdd;
 }
 
-struct command_t Queue_Next(Queue* q)
-{
+command_t Queue_Next(Queue* q) {
   command_t next;
   GraphNode* toRemove;
   if(QueueIsEmpty(q))
-    return NULL;
+    return 0;
   else if(q->front == q->end) //Last node left
     {
       toRemove = q->front;
-      q->front = NULL;
-      q->end = NULL;
+      q->front = 0;
+      q->end = 0;
     }
   else
     {
@@ -66,9 +75,9 @@ struct command_t Queue_Next(Queue* q)
   next = toRemove->command;
   free(toRemove);
 
-  return result;
+  return next;
 }
-/*      ----------- Structure for Dependency_Graph --------------  */
+
 
 typedef struct{
   Queue* no_dependencies;
@@ -80,16 +89,7 @@ typedef struct{
 }Dependency_Graph;
 
 
-
-typdef struct{
-  command_t command;
-  struct GraphNode** before;       //Is an array of GraphNode pointers
-  int before_size;                 //The size of the array 'before'
-  pid_t pid;                       //Initialized to -1
-  int buffer;
-}GraphNode;
-
-void insertGraphNode(GraphNode gnode, GraphNode new_node)
+void insertGraphNode(GraphNode_t gn, GraphNode_t new_node)
 {
   if(gn->before == NULL)
     {
@@ -125,7 +125,7 @@ typedef struct{
   int wl_size;
 }ListNode;
 
-void addToReadList(ListNode lnode, char *s)
+void addToReadList(ListNode_t lnode, char *s)
 {
   if (lnode->read_list == NULL)
     {

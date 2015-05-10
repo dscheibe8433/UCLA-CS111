@@ -25,8 +25,8 @@ void execute_command (command_t, bool);
    been executed.  Wait for the command, if it is not already finished.  */
 int command_status (command_t);
 
-typedef struct ListNode *ListNode;
-typedef struct GraphNode *GraphNode;
-typedef struct DependencyGraph *DependencyGraph;
+typedef struct ListNode *ListNode_t;
+typedef struct GraphNode *GraphNode_t;
+typedef struct DependencyGraph *DependencyGraph_t;
 
 DependencyGraph createGraph(command_stream_t c_stream);
