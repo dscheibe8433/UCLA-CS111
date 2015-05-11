@@ -4,6 +4,7 @@
 #include "command-internals.h"
 
 #include <error.h>
+#include <stdio.h>
 
 /* FIXME: You may need to add #include directives, macro definitions,
    static function definitions, etc.  */
@@ -36,10 +37,7 @@ typedef struct Queue{
 
 bool QueueIsEmpty(Queue* q)
 {
-	if(q == NULL)
-		return NULL;
-	else
-		return (q->front == NULL);
+  return (q->front == NULL || q->end == NULL);
 }
 
 void Queue_Insert(Queue* q, command_t command)
@@ -233,8 +231,12 @@ bool isDependent(char **list_a, int list_a_size, char **list_b, int list_b_size)
 DependencyGraph_t createGraph(command_stream_t c_stream)
 {
   DependencyGraph_t d_graph = (DependencyGraph_t) malloc(sizeof(struct DependencyGraph));
-  d_graph->no_dependencies = NULL;
-  d_graph->dependencies = NULL;
+  d_graph->no_dependencies = (Queue*)malloc(sizeof(struct Queue));
+  d_graph->no_dependencies->front = 0;
+  d_graph->no_dependencies->end = 0;
+  d_graph->dependencies = (Queue*)malloc(sizeof(struct Queue));
+  d_graph->dependencies->front = 0;
+  d_graph->dependencies->end = 0;
   d_graph->nodep_size = 0;
   d_graph->dep_size = 0;
   d_graph->nodep_buffer = BUFFER_SIZE;
@@ -517,7 +519,9 @@ void executeDependencies(Queue* dependencies)
 
 
 int executeGraph(DependencyGraph_t graph){
-  executeNoDependencies(graph->no_dependencies);
-  executeDependencies(graph->dependencies);
-  return 1;
+	if(graph == NULL)
+		printf("null");
+	executeNoDependencies(graph->no_dependencies);
+	executeDependencies(graph->dependencies);
+	return 1;
 }
