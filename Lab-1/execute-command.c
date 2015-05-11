@@ -54,8 +54,10 @@ void Queue_Insert(Queue* q, command_t command)
 		  q->front = toAdd;
 		  q->end = toAdd;
 	  }
-	  q->end->next = toAdd;
-	  q->end = toAdd;
+	  else{
+		  q->end->next = toAdd;
+		  q->end = toAdd;
+	  }
 	}
 }
 
@@ -350,6 +352,7 @@ execute_command (command_t c, bool time_travel)
 			}
 			
 			execvp( c->u.word[0], c->u.word );
+			printf("Executing %s", c->u.word[0]);
 			error(1, 0, "Error executing c->u.word[0]\n");
 		}
 		else if (child > 0) // parent process
