@@ -17,6 +17,7 @@
 #include <string.h>
 
 #define BUFFER_SIZE 100
+#define INC_BUFSIZE 10
 
 /*      ----------- Structure for Queue --------------  */
 
@@ -26,70 +27,32 @@ typedef struct GraphNode{
   int before_size;                 //The size of the array 'before'
   pid_t pid;                       //Initialized to -1
   int buffer;
-  struct GraphNode* next;
+  bool done;
 }GraphNode;
 
-
-typedef struct Queue{
-  struct GraphNode* front;
-  struct GraphNode* end;
-} Queue;
-
-bool QueueIsEmpty(Queue* q)
+void initGraphNode(GraphNode* gn, command_t command)
 {
-  return (q->front == NULL || q->end == NULL);
+	gn->command = command;
+	gn->pid = -1;
+	gn->buffer = 10;
+	gn->before_size = 0;
+	gn->before = NULL;
+	return;
 }
 
-void Queue_Insert(Queue* q, command_t command)
+void addDependency(DependencyGraph_t dg, GraphNode_t gn)
 {
-  //Make a new command_list node first
-  struct GraphNode* toAdd = (GraphNode*)malloc(sizeof(GraphNode));
-  toAdd->command = command;
-  toAdd->pid = -1;
-  toAdd->next = NULL;
-
-  if(q != 0){
-	  if(QueueIsEmpty(q))
-	  {
-		  q->front = toAdd;
-		  q->end = toAdd;
-	  }
-	  else{
-		  q->end->next = toAdd;
-		  q->end = toAdd;
-	  }
-	}
+	return;
 }
 
-command_t Queue_Next(Queue* q) {
-  command_t next;
-  GraphNode* toRemove;
-  if(q == 0)
-	  return NULL;
-  if(QueueIsEmpty(q))
-    return 0;
-  else if(q->front == q->end) //Last node left
-    {
-      toRemove = q->front;
-      q->front = 0;
-      q->end = 0;
-    }
-  else
-    {
-      toRemove = q->front;
-      q->front = q->front->next;
-    }
-
-  next = toRemove->command;
-  free(toRemove);
-
-  return next;
+void addNoDependency(DependencyGraph_t dg, GraphNode_t gn)
+{
+	return;
 }
-
 
 typedef struct DependencyGraph{
-  Queue* no_dependencies;
-  Queue* dependencies;
+  GraphNode_t* no_dependencies;
+  GraphNode_t* dependencies;
   int nodep_size;
   int dep_size;
   int nodep_buffer;
@@ -233,12 +196,8 @@ bool isDependent(char **list_a, int list_a_size, char **list_b, int list_b_size)
 DependencyGraph_t createGraph(command_stream_t c_stream)
 {
   DependencyGraph_t d_graph = (DependencyGraph_t) malloc(sizeof(struct DependencyGraph));
-  d_graph->no_dependencies = (Queue*)malloc(sizeof(struct Queue));
-  d_graph->no_dependencies->front = 0;
-  d_graph->no_dependencies->end = 0;
-  d_graph->dependencies = (Queue*)malloc(sizeof(struct Queue));
-  d_graph->dependencies->front = 0;
-  d_graph->dependencies->end = 0;
+  d_graph->no_dependencies = (GraphNode_t*)malloc(sizeof(GraphNode));
+  d_graph->dependencies = (GraphNode_t*)malloc(sizeof(struct GraphNode));
   d_graph->nodep_size = 0;
   d_graph->dep_size = 0;
   d_graph->nodep_buffer = BUFFER_SIZE;
@@ -282,9 +241,9 @@ DependencyGraph_t createGraph(command_stream_t c_stream)
 	  temp_list = temp_list->next;
 	}
       if (l_node->g_node->before == NULL)
-	Queue_Insert(d_graph->no_dependencies, command);
+	addNoDependency(d_graph, l_node->g_node);
       else
-	Queue_Insert(d_graph->dependencies, command);
+	addDependency(d_graph, l_node->g_node);
       list = l_node;
     }
   return d_graph;
@@ -358,7 +317,6 @@ execute_command (command_t c, bool time_travel)
 		{
 		  waitpid(child, &child_status, 0);
 		  c->status = child_status;
-		  close(fd);
 		  return;
 			//PARENT PROCESS STUFF
 		}
@@ -463,50 +421,50 @@ execute_command (command_t c, bool time_travel)
 }
 
 
-void executeNoDependencies(Queue* no_dependencies){
-	if(no_dependencies == NULL)
-		return;
-	GraphNode* iter = no_dependencies->front;
-	while(iter != NULL && iter != no_dependencies->end)
+void executeNoDependencies(DependencyGraph_t dg){
+	int i = 0;
+	
+	for(i = 0; i < dg->nodep_size; i++)
 	{
 		pid_t pid = fork();
 
 		if(pid == 0)
 		{
-			execute_command(iter->command, true);
+			execute_command(dg->no_dependencies[i]->command, true);
 			_exit(0);
 		}
 		else if(pid > 0)
-			iter->pid = pid;
+			dg->no_dependencies[i]->pid = pid;
 		else
 			error(1, 0, "could not fork");
-		
-		iter = iter->next;
 	}
+
 }
 
-void executeDependencies(Queue* dependencies)
-{
-	if(dependencies == NULL)
-		return;
-	GraphNode* iter = dependencies->front;
-	while(iter != NULL)
-	{
+void executeDependencies(DependencyGraph_t dg)
+
+	int i;
+
+	for(i = 0; i < dg->dep_size; i++){
+		int j;
+		GraphNode_t iter = dg->dependencies[i];
+
 		/* Wait for processes in graph node's before list to start */
 		
-		int i;
-		/*
-		for(i = 0; i < iter->before_size; i++ ){
-			while (iter->before[i]->pid == -1)
+		for(j = 0; j < iter->before_size; j++ ){
+			while (iter->before[j]->pid == -1)
 				continue;
 		}
-		*/
+		
 
 		/* Wait for process in current graph node's before list to finish */
 		int status;
 
-		for(i = 0; i < iter->before_size; i++){
-			waitpid(iter->before[i]->pid, &status, 0);
+		for(j = 0; j < iter->before_size; j++){
+			if(!iter->before[j]->done){
+				waitpid(iter->before[j]->pid, &status, 0);
+				iter->before[j]->done = true;
+			}
 		}
 
 
@@ -520,17 +478,13 @@ void executeDependencies(Queue* dependencies)
 			iter->pid = pid;
 		else
 			error(1, 0, "could not fork");
-
-
-		iter = iter->next;
 	}
 }
-
 
 int executeGraph(DependencyGraph_t graph){
 	if(graph == NULL)
 		printf("null");
-	executeNoDependencies(graph->no_dependencies);
-	executeDependencies(graph->dependencies);
+	executeNoDependencies(graph);
+	executeDependencies(graph);
 	return 1;
 }
