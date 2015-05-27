@@ -99,14 +99,14 @@ static struct super_operations ospfs_superblock_ops;
  *   in a bitmap, may be useful.
  */
 
-// bitvector_set -- Set 'i'th bit of 'vector' to 1.
+// bitvector_set -- Set 'i'th bit of 'vector' to 1. (makes it free)
 static inline void
 bitvector_set(void *vector, int i)
 {
 	((uint32_t *) vector) [i / 32] |= (1 << (i % 32));
 }
 
-// bitvector_clear -- Set 'i'th bit of 'vector' to 0.
+// bitvector_clear -- Set 'i'th bit of 'vector' to 0. (makes it not free)
 static inline void
 bitvector_clear(void *vector, int i)
 {
@@ -553,6 +553,8 @@ static uint32_t
 allocate_block(void)
 {
 	/* EXERCISE: Your code here */
+	
+	//COPYTHIS1//
 
 	void *b = ospfs_block(OSPFS_FREEMAP_BLK);
 	ospfs_super_t *superblock = ospfs_block(1);
@@ -570,6 +572,8 @@ allocate_block(void)
 	}
 	//Disk full
 	return 0;
+
+	//COPYTHIS1//
 }
 
 
@@ -588,6 +592,18 @@ static void
 free_block(uint32_t blockno)
 {
 	/* EXERCISE: Your code here */
+	//COPYTHIS2//
+	void* b = ospfs_block(OSPFS_FREEMAP_BLK);
+	ospfs_super_t *superblock = ospfs_block(1);
+	int b_size = superblock->os_nblocks;
+	
+	//Bogus Block
+	if (blockno < OSPFS_FREEMAP_BLK || blockno > b_size)
+		return;
+	else
+		bitvector_set(b, blockno);
+
+	//COPYTHIS2//
 }
 
 
@@ -623,8 +639,11 @@ free_block(uint32_t blockno)
 static int32_t
 indir2_index(uint32_t b)
 {
-	// Your code here.
-	return -1;
+	//COPYTHIS3//
+	if(b < OSPFS_NDIRECT || b < OSPFS_NDIRECT + 256)
+		return -1;
+	return 0;
+	//COPYTHIS3//
 }
 
 
@@ -642,8 +661,14 @@ indir2_index(uint32_t b)
 static int32_t
 indir_index(uint32_t b)
 {
-	// Your code here.
-	return -1;
+	//COPYTHIS4//
+	if(b < OSPFS_NDIRECT)
+		return -1;
+	if(b < OSPFS_NDIRECT + OSPFS_NINDIRECT)
+		return 0;
+	return (b - OSPFS_NDIRECT) % OSPFS_NINDIRECT;
+
+	//COPYTHIS4//
 }
 
 
