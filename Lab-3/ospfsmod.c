@@ -988,8 +988,8 @@ change_size(ospfs_inode_t *oi, uint32_t new_size)
 		{
 			//No free blocks available, must shrink the file back to original size
 			while(ospfs_size2nblocks(oi->oi_size) > ospfs_size2nblocks(old_size)) {
-				int a = remove_block(oi);
-				if(a == -EIO) 
+				r = remove_block(oi);
+				if(r == -EIO) 
 					return -1;
 			}
 			
@@ -1002,8 +1002,8 @@ change_size(ospfs_inode_t *oi, uint32_t new_size)
 	
 	//Need to shrink the file
 	while (ospfs_size2nblocks(oi->oi_size) > ospfs_size2nblocks(new_size)) {
-	    int a = remove_block(oi);
-		if (a == -EIO || a == 1)
+	    r = remove_block(oi);
+		if (r == -EIO || r == 1)
 			return -1;
 	}
 
@@ -1443,32 +1443,25 @@ ospfs_symlink(struct inode *dir, struct dentry *dentry, const char *symname)
 	ospfs_inode_t *dir_oi = ospfs_inode(dir->i_ino);
 	uint32_t entry_ino = 0;
 	ospfs_symlink_inode_t* symlink;
-	ospfs_direntry_t* odir;
 
 	if(dentry->d_name.len > OSPFS_MAXSYMLINKLEN || strlen(symname) > OSPFS_MAXSYMLINKLEN)
 		return -ENAMETOOLONG;
 	if(find_direntry(dir_oi, dentry->d_name.name, dentry->d_name.len) != 0)
 		return -EEXIST;
 	
+	entry_ino = ospfs_create(dir, dentry, dir_oi->oi_mode, NULL);
 
-	uint32_t n_inode = allocate_inode();
-	if(n_inode == -ENOSPC)
-		return -ENOSPC;
+	if(entry_ino < 0)
+		return entry_ino;
 
 	//Create & initialize a new inode for symbolic link
-	symlink = (ospfs_symlink_inode_t*)ospfs_inode(n_inode);
+	symlink = (ospfs_symlink_inode_t*)ospfs_inode(entry_ino);
+
 	symlink->oi_size = dentry->d_name.len;
 	symlink->oi_nlink = 1;
 	symlink->oi_ftype = OSPFS_FTYPE_SYMLINK;
 
-	odir = (ospfs_direntry_t*)create_blank_direntry(dir_oi);
-	if(IS_ERR(odir))
-	{
-		symlink->oi_nlink--;
-		return PTR_ERR(odir);
-	}
-	strcpy(odir->od_name, dentry->d_name.name);
-	odir->od_ino = n_inode;
+	memcpy(symlink->oi_symlink, symname, strlen(symname));
 
 
 	/* Execute this code after your function has successfully created the
@@ -1503,28 +1496,27 @@ ospfs_follow_link(struct dentry *dentry, struct nameidata *nd)
 	ospfs_symlink_inode_t *oi =
 		(ospfs_symlink_inode_t *) ospfs_inode(dentry->d_inode->i_ino);
 	
-	char* symlink = oi->oi_symlink;
-	char* p = NULL;
+	int p;
+	
+	//Conditional symlink?
+	if(!strncmp(oi->oi_symlink, "root?", 5))
+	{ 
+		p = strchr(oi->oi_symlink, ':') - oi->oi_symlink;
 
-	char temp[OSPFS_MAXNAMELEN + 1];
-
-	if(current->uid == 0)
-	{
-		p = strchr(symlink, '?');
-		p++;
-		int len = strcspn(p, ":");
-		strncpy(temp, p, len);
-		temp[len] = '\0';
+		//For root user
+		if(!current->uid)
+		{
+			//Null-byte to mark end
+			oi->oi_symlink[p] = '\0';
+			nd_set_link(nd, oi->oi_symlink + 6);
+		}
+		//For other users
+		else
+			nd_set_link(nd, oi->oi_symlink + p + 1);
 	}
 	else
-	{
-		p = strchr(symlink, ':');
-		p++;
-		strcpy(temp, p);
-	}
+		nd_set_link(nd, oi->oi_symlink);
 
-
-	nd_set_link(nd, p);
 	return (void *) 0;
 }
 
