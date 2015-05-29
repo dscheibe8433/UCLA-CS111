@@ -450,7 +450,7 @@ ospfs_dir_readdir(struct file *filp, void *dirent, filldir_t filldir)
 
 		/* If at the end of the directory, set 'r' to 1 and exit
 		 * the loop.  For now we do this all the time.
-		 *
+		 **/
 
 		if (f_pos > OSPFS_DIRENTRY_SIZE * dir_oi->oi_size)
 		{
@@ -766,7 +766,7 @@ add_block(ospfs_inode_t *oi)
 		return -ENOSPC;
 	      }
 	    memset(ospfs_block(direct_block), 0, OSPFS_BLKSIZE);
-	    oi->oi_direct[n] = direct;
+	    oi->oi_direct[n] = direct_block;
 	  }
 	else if (n >= OSPFS_NDIRECT && n < OSPFS_NDIRECT + OSPFS_NINDIRECT) //indirect1
 	  {
@@ -778,7 +778,7 @@ add_block(ospfs_inode_t *oi)
 		  return -ENOSPC;
 		memset(ospfs_block(indirect_block), 0, OSPFS_BLKSIZE);
 		oi->oi_indirect = indirect_block;
-		allocated[0] = ospfs(indirect_block);
+		allocated[0] = (uint32_t*)ospfs_block(indirect_block);
 	      }
 	    direct_block = allocate_block();
 	    if (direct_block == 0)
@@ -876,23 +876,26 @@ remove_block(ospfs_inode_t *oi)
 	  return -EIO;
 	if (n == 0)
 	  return 0; //already empty
+	uint32_t* indirect_block = NULL;
+	uint32_t *indirect2_block = NULL;
+
 	
 	if (n <= OSPFS_NDIRECT)
 	  {
 	    eprintk("ospfs_removeblock: removing direct block\n");
 	    if (oi->oi_direct[n-1] == 0)
 	      return -EIO;
-	    freeblock(oi->oi_direct[n-1]);
+	    free_block(oi->oi_direct[n-1]);
 	    oi->oi_direct[n-1] = 0;
 	  }
 	else if (n <= OSPFS_NDIRECT + OSPFS_NINDIRECT)
 	  {
 	    eprintk("ospfs_removeblock: remove indirect block\n");
-	    uint32_t* indirect_block = NULL;
+
 	    if (oi->oi_indirect == 0)
-	      return -EOI;
+	      return -EIO;
 	    //free direct block
-	    indirect block = (uint32_t *) ospfs_block(oi->oi_indirect);
+	    indirect_block = (uint32_t *) ospfs_block(oi->oi_indirect);
 	    free_block(oi->oi_direct[n-1]);
 	    oi->oi_direct[n-1] = 0;
 	    //free indirect block
@@ -906,15 +909,13 @@ remove_block(ospfs_inode_t *oi)
 	else
 	  {
 	    eprintk("ospfs_removeblock: removing indirect2 block\n");
-	    uint32_t *indirect2_block = NULL;
-	    uint32_t *indirect_block = NULL;
 	    if (oi->oi_indirect2 == 0)
 	      return -EIO;
 	    
 	    indirect2_block = (uint32_t *) ospfs_block(oi->oi_indirect2);
 	    if (indirect2_block[indir_index(n-1)] == 0)
 	      return -EIO;
-	    indirect_block = (uint32_t *) ospfs_block(indir2[indir_index(n-1)]);
+	    indirect_block = (uint32_t *) ospfs_block(indirect2_block[indir_index(n-1)]);
 	    free_block(indirect_block[direct_index(n-1)]); //free direct block
 	    indirect_block[direct_index(n-1)] = 0;
 
@@ -984,8 +985,8 @@ change_size(ospfs_inode_t *oi, uint32_t new_size)
 		if(add_block(oi) == -ENOSPC) 
 		{
 			//No free blocks available, must shrink the file back to original size
-			while(ospfs_size2nblock(oi->oi_size) > ospfs_size2nblocks(old_size)) {
-				a = remove_block(oi);
+			while(ospfs_size2nblocks(oi->oi_size) > ospfs_size2nblocks(old_size)) {
+				int a = remove_block(oi);
 				if(a == -EIO) 
 					return -1;
 			}
@@ -1078,10 +1079,11 @@ ospfs_read(struct file *filp, char __user *buffer, size_t count, loff_t *f_pos)
 	}
 
 	// Copy the data to user block by block
+	uint32_t n;
+	char *data;
+
 	while (amount < count && retval >= 0) {
 	        uint32_t blockno = ospfs_inode_blockno(oi, *f_pos);
-		uint32_t n;
-		char *data;
 
 		// ospfs_inode_blockno returns 0 on error
 		if (blockno == 0) {
@@ -1282,7 +1284,7 @@ create_blank_direntry(ospfs_inode_t *dir_oi)
       if (dir->od_ino == 0)
 	  return dir;
     }
-  retval = addblock(dir_oi);
+  retval = add_block(dir_oi);
   if (retval < 0)
     return ERR_PTR(retval);
   else
@@ -1363,6 +1365,7 @@ ospfs_create(struct inode *dir, struct dentry *dentry, int mode, struct nameidat
 	ospfs_direntry_t *d_entry = NULL;
 	
 	uint32_t n_length = dentry->d_name.len;
+
 	if (dir_oi->oi_ftype != OSPFS_FRTYPE_DIR)
 	    return -EIO;
 	if (n_length > OSPFS_MAXNAMELEN)
@@ -1450,7 +1453,7 @@ ospfs_symlink(struct inode *dir, struct dentry *dentry, const char *symname)
 	symlink->oi_nlink = 1;
 	symlink->oi_ftype = OSPFS_FTYPE_SYMLINK;
 
-	ospfs_direntry_t* odir = create_blanke_direntry(dir_oi);
+	ospfs_direntry_t* odir = (ospfs_direntry_t*)create_blank_direntry(dir_oi);
 	if(IS_ERR(odir))
 	{
 		symlink->oi_nlink--;
