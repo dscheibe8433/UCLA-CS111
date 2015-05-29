@@ -751,7 +751,7 @@ add_block(ospfs_inode_t *oi)
 	uint32_t n = ospfs_size2nblocks(oi->oi_size);
 
 	// keep track of allocations to free in case of -ENOSPC
-	uint32_t *allocated[2] = { 0, 0 };
+	uint32_t allocated[2] = { 0, 0 };
 
 	uint32_t direct_block = 0;
 	uint32_t indirect_block = 0;
@@ -776,9 +776,10 @@ add_block(ospfs_inode_t *oi)
 		indirect_block = allocate_block();
 		if (indirect_block == 0)
 		  return -ENOSPC;
+		zero_block(indirect_block);
 		memset(ospfs_block(indirect_block), 0, OSPFS_BLKSIZE);
 		oi->oi_indirect = indirect_block;
-		allocated[0] = (uint32_t*)ospfs_block(indirect_block);
+		allocated[0] = (uint32_t)ospfs_block(indirect_block);
 	      }
 	    direct_block = allocate_block();
 	    if (direct_block == 0)
@@ -791,7 +792,7 @@ add_block(ospfs_inode_t *oi)
 		return -ENOSPC;
 	      }
 	    memset(ospfs_block(direct_block), 0, OSPFS_BLKSIZE);
-	    indirect_block = (uint32_t *) ospfs_block(oi->oi_indirect);
+	    indirect_block = (uint32_t)ospfs_block(oi->oi_indirect);
 	    indirect_block[direct_index(n)] = direct_block;
 	  }
 	else if (n >= OSPFS_NDIRECT + OSPFS_NINDIRECT && n < OSPFS_MAXFILEBLKS)
@@ -871,13 +872,14 @@ remove_block(ospfs_inode_t *oi)
 {
 	// current number of blocks in file
 	uint32_t n = ospfs_size2nblocks(oi->oi_size);
+	uint32_t* indirect_block = NULL;
+	uint32_t *indirect2_block = NULL;
 
 	if (n < 0)
 	  return -EIO;
 	if (n == 0)
 	  return 0; //already empty
-	uint32_t* indirect_block = NULL;
-	uint32_t *indirect2_block = NULL;
+
 
 	
 	if (n <= OSPFS_NDIRECT)
@@ -924,7 +926,7 @@ remove_block(ospfs_inode_t *oi)
 		free_block(indirect2_block[indir_index(n)]);
 		indirect2_block[indir_index(n)] = 0;
 	      }
-	    if (indirect_block(n) == 0)
+	    if (indirect_block[n] == 0)
 	      {
 		free_block(oi->oi_indirect2);
 		oi->oi_indirect2 = 0;
@@ -1067,9 +1069,14 @@ ospfs_notify_change(struct dentry *dentry, struct iattr *attr)
 static ssize_t
 ospfs_read(struct file *filp, char __user *buffer, size_t count, loff_t *f_pos)
 {
-        ospfs_inode_t *oi = ospfs_inode(filp->f_dentry->d_inode->i_ino);
+    ospfs_inode_t *oi = ospfs_inode(filp->f_dentry->d_inode->i_ino);
 	int retval = 0;
 	size_t amount = 0;
+	uint32_t n;
+	char *data;
+	uint32_t offset;
+	uint32_t bytes_left;
+
 
 	// Make sure we don't read past the end of the file!
 	// Change 'count' so we never read past the end of the file.
@@ -1079,8 +1086,6 @@ ospfs_read(struct file *filp, char __user *buffer, size_t count, loff_t *f_pos)
 	}
 
 	// Copy the data to user block by block
-	uint32_t n;
-	char *data;
 
 	while (amount < count && retval >= 0) {
 	        uint32_t blockno = ospfs_inode_blockno(oi, *f_pos);
@@ -1092,8 +1097,8 @@ ospfs_read(struct file *filp, char __user *buffer, size_t count, loff_t *f_pos)
 		}
 
 		data = ospfs_block(blockno);
-		uint32_t offset = (*f_pos % OSPFS_BLKSIZE);
-		uint32_t bytes_left = count - amount;
+		offset = (*f_pos % OSPFS_BLKSIZE);
+		bytes_left = count - amount;
 		// Figure out how much data is left in this block to read.
 		// Copy data into user space. Return -EFAULT if unable to write
 		// into user space.
@@ -1361,21 +1366,22 @@ ospfs_create(struct inode *dir, struct dentry *dentry, int mode, struct nameidat
 {
 	ospfs_inode_t *dir_oi = ospfs_inode(dir->i_ino);
 	uint32_t entry_ino = 0;
+
 	ospfs_inode_t *i_node = NULL;
 	ospfs_direntry_t *d_entry = NULL;
 	
 	uint32_t n_length = dentry->d_name.len;
 
-	if (dir_oi->oi_ftype != OSPFS_FRTYPE_DIR)
+	if (dir_oi->oi_ftype != OSPFS_FTYPE_DIR)
 	    return -EIO;
 	if (n_length > OSPFS_MAXNAMELEN)
 	    return -ENAMETOOLONG;
-	if (find_direntry(dir_oi, dentry->d_name.name, n_length);
+	if (find_direntry(dir_oi, dentry->d_name.name, n_length));
 	    return -EEXIST;
 	    
-	d_entry = create_black_direntry(dir_oi);
+	d_entry = create_blank_direntry(dir_oi);
 	    if (IS_ERR(d_entry))
-	      return PTR_ERR(d_entry));
+	      return PTR_ERR(d_entry);
 
 	while(entry_ino < ospfs_super->os_ninodes)
 	  {
@@ -1393,7 +1399,7 @@ ospfs_create(struct inode *dir, struct dentry *dentry, int mode, struct nameidat
 	i_node->oi_mode = mode;
 	i_node->oi_nlink = 1;
 	d_entry->od_ino = entry_ino;
-	memcpy(d_entry->od_name, dentry->d_name.name, dentry->name.len);
+	memcpy(d_entry->od_name, dentry->d_name.name, dentry->d_name.len);
 	d_entry->od_name[dentry->d_name.len] = '\0';
 	
 	/* Execute this code after your function has successfully created the
@@ -1436,10 +1442,12 @@ ospfs_symlink(struct inode *dir, struct dentry *dentry, const char *symname)
 {
 	ospfs_inode_t *dir_oi = ospfs_inode(dir->i_ino);
 	uint32_t entry_ino = 0;
+	ospfs_symlink_inode_t* symlink;
+	ospfs_direntry_t* odir;
 
 	if(dentry->d_name.len > OSPFS_MAXSYMLINKLEN || strlen(symname) > OSPFS_MAXSYMLINKLEN)
 		return -ENAMETOOLONG;
-	if(find_direntry(dir_oi, dentry->d_name.name, dentry->name.len) != 0)
+	if(find_direntry(dir_oi, dentry->d_name.name, dentry->d_name.len) != 0)
 		return -EEXIST;
 	
 
@@ -1448,12 +1456,12 @@ ospfs_symlink(struct inode *dir, struct dentry *dentry, const char *symname)
 		return -ENOSPC;
 
 	//Create & initialize a new inode for symbolic link
-	ospfs_symlink_inode_t* symlink = (ospfs_symlink_inode_t*)ospfs_inode(n_inode);
+	symlink = (ospfs_symlink_inode_t*)ospfs_inode(n_inode);
 	symlink->oi_size = dentry->d_name.len;
 	symlink->oi_nlink = 1;
 	symlink->oi_ftype = OSPFS_FTYPE_SYMLINK;
 
-	ospfs_direntry_t* odir = (ospfs_direntry_t*)create_blank_direntry(dir_oi);
+	odir = (ospfs_direntry_t*)create_blank_direntry(dir_oi);
 	if(IS_ERR(odir))
 	{
 		symlink->oi_nlink--;
