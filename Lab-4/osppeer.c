@@ -55,8 +55,8 @@ typedef struct peer {		// A peer connection (TASK_DOWNLOAD)
 
 typedef struct task {
   //extra credit exercise
-  md5_state_t *md5_state; //md5_state to be initialized and used 
-  char digest[MD5_TEXT_DIGEST_SIZE];      //16 byte digest hash value return by md5_finish
+  //  md5_state_t *md5_state; //md5_state to be initialized and used 
+  //char digest[MD5_TEXT_DIGEST_SIZE];      //16 byte digest hash value return by md5_finish
   
   tasktype_t type;	// Type of connection
 
@@ -92,8 +92,8 @@ static task_t *task_new(tasktype_t type)
 	}
 
 	//extra credit
-	t->md5_state = (md5_state_t *) malloc(sizeof(md5_state_t));
-	md5_init(t->md5_state);
+	//t->md5_state = (md5_state_t *) malloc(sizeof(md5_state_t));
+	//	md5_init(t->md5_state);
       
 	t->type = type;
 	t->peer_fd = t->disk_fd = -1;
@@ -104,7 +104,7 @@ static task_t *task_new(tasktype_t type)
 	memset(t->filename, 0, FILENAMESIZ);
 	memset(t->disk_filename, 0, FILENAMESIZ);
 	//extra credit
-	memset(t->digest, 0, MD5_TEXT_DIGEST_SIZE);
+	//memset(t->digest, 0, MD5_TEXT_DIGEST_SIZE);
 	
 	return t;
 }
@@ -126,7 +126,7 @@ static void task_pop_peer(task_t *t)
 		t->total_written = 0;
 		t->disk_filename[0] = '\0';
 		//extra credit
-		free(t->md5_state);
+		//free(t->md5_state);
 		
 		// Move to the next peer
 		if (t->peer_list) {
@@ -190,8 +190,8 @@ taskbufresult_t read_to_taskbuf(int fd, task_t *t)
 		return TBUF_END;
 	else {
 	        //extra credit
-	        if (t->type == TASK_DOWNLOAD)
-		  md5_append(t->md5_state, (md5_byte_t *) &t->buf[tailpos], amt);
+	        //if (t->type == TASK_DOWNLOAD)
+	  //md5_append(t->md5_state, (md5_byte_t *) &t->buf[tailpos], amt);
 		t->tail += amt;
 		return TBUF_OK;
 	}
@@ -515,8 +515,8 @@ task_t *start_download(task_t *tracker_task, const char *filename)
 		die("osptracker's response to WANT has unexpected format!\n");
 
 	//extra credit
-	messagepos = read_tracker_response(tracker_task);
-	strncpy(t->digest, tracker_task->buf, MD5_TEXT_DIGEST_SIZE);
+	//messagepos = read_tracker_response(tracker_task);
+	//strncpy(t->digest, tracker_task->buf, MD5_TEXT_DIGEST_SIZE);
  exit:
 	return t;
 }
@@ -618,12 +618,12 @@ static void task_download(task_t *t, task_t *tracker_task)
 			t->disk_filename, (unsigned long) t->total_written);
 
 		//extra credit
-		char md5_check[MD5_TEXT_DIGEST_SIZE];
+		/*char md5_check[MD5_TEXT_DIGEST_SIZE];
 		if (md5_finish_text(t->md5_state, md5_check, 1) != MD5_TEXT_DIGEST_SIZE || strncmp(t->digest, md5_check, MD5_TEXT_DIGEST_SIZE) != 0)
 		  {
 		    error("File md5_check does not match.\n");
 		    goto try_again;
-		  }
+		    }*/
 		// Inform the tracker that we now have the file,
 		// and can serve it to others!  (But ignore tracker errors.)
 		if (strcmp(t->filename, t->disk_filename) == 0) {
