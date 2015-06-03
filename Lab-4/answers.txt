@@ -1,0 +1,50 @@
+# Fill in your name, student ID, and email address in this file.
+# If you are working in a team, fill out the information for both team 
+# members.
+
+# SUBMIT THE LAB ONLY ONCE (from only one partner). This file will be
+# automatically parsed in order to give both team members credit for the
+# lab.
+
+# You need to fill in the EXERCISE sections describing your solutions
+# for Tasks 1, 2, and 3, as well as write the corresponding code.
+# If you did one or more extra credit problems, indicate which one in the
+# appropriate section below (remove the # sign first). If you have any other
+# information you'd like us to know, please add it at the end of the file.
+
+# Partner 1
+Name: David Scheibe
+Student ID: 004124290
+Email: dscheibe@g.ucla.edu
+
+# Partner 2 (if you're working in a team)
+Name: Mignon Huang
+Student ID: 904252278
+Email: mignon.ucla@gmail.com
+
+# EXERCISE 1: What method you used to make your peer download and upload
+#    files in parallel?  (~1-3 sentences)
+We used forking.  We first forked our downloading processes, so that all downloads can be done in parallel.  Then we forked uploads so that they can be done in parallel, but only after downloading has finished.
+
+# EXERCISE 2A: What conditions did you find and fix that would have
+#    triggered a buffer overrun bug?  (~1-3 sentences each)
+1) In start_download() function and task_download() function, I truncated the file name to a fixed size of FILENAMESIZ-1 and the disk_filename to a fixed size of FILENAMESIZ-1 using strncpy() in order to prevent extremely long or infinite stringed file names to overrun the buffer and memory.
+
+
+# EXERCISE 2B: What other robustness problems did you fix?  (~1-3 sentences
+#    each)
+1) I checked to make sure that the file path is in the current working directory.
+2) I checked to make sure that the current working directory was a valid path.
+3) I checked to make sure that the file is a valid path file name.
+4) I changed TASKBUFSIZE to 65536 bytes in order to ensure that make run-popular does not crash the program or fill up the buffer with fake peers.
+5) In order to zero out the filename and disk_filename for downloading, I used memset on filename and disk_filename for the set size FILENAMESIZ. This helps each download start fresh.
+6) In start_download() and task_download() function, I checked to make sure that the download filename length does not exceed FILENAMESIZ.  This solves problems of enemy peers trying to upload files with names extremely large or infinite.
+7) In task_upload() function I checked to make sure the filename size that is being requested of me is not too large/infinite.  Compared it to FILENAMESIZ.
+
+# EXERCISE 3: Describe the attacks you implemented for "evil mode".  Why
+#    are they attacks?  (~3-10 sentences each)
+
+# Extra credit problems
+#Extra credit problem: none
+
+# Add any other information you'd like us to know below this line.
