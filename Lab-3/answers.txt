@@ -11,14 +11,14 @@
 # information you'd like us to know, please add it at the end of the file.
 
 # Partner 1
-Name: 
-Student ID: 
-Email: 
+Name: Mignon Huang
+Student ID: 904252278
+Email: mignon.ucla@gmail.com
 
 # Partner 2 (if you're working in a team)
-Name: 
-Student ID: 
-Email: 
+Name: David Scheibe
+Student ID: 004124290
+Email: dscheibe@ucla.edu
 
 # Extra credit problems
 #Extra credit problem: none
