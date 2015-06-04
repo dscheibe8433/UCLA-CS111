@@ -47,7 +47,9 @@ We used forking.  We first forked our downloading processes, so that all downloa
 Uploader Attack: When a peer tries to download the file, it has no way of telling whether the content it is downloading is still legitimate. As a result, we can continue to just upload junk content to the downloader and fill up their storage space with useless content.
 
 Downloader Attack:
-Attempt to overload them with requests for valid files. The peer will either get their buffer filled up or spend a lot of effort servicing the redundant requests while we don't need or use the data they upload.
+1. Try to overflow their filename buffer. This will cause a segmentation fault if they don't check the length of the filename. It could also potentially used to put attack code into their overflow
+2. Try to get the osppeer.c code to see how their peer runs. This can potentially be used to find bugs in their code and exploit them to plan future attacks.
+3. Attempt to overload them with requests for valid files. The peer will either get their buffer filled up or spend a lot of effort servicing the redundant requests while we don't need or use the data they upload.
 
 # Extra credit problems
 #Extra credit problem: none
