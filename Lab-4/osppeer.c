@@ -549,7 +549,7 @@ static void download_evil(task_t* t, task_t *tracker_task)
 			&& t->peer_list->port == listen_port)
 	{
 		//Skip this peer
-		message("* Skipping peer");
+		message("* Skipping peer\n");
 		goto try_again;
 	}
 
@@ -597,7 +597,7 @@ static void download_evil(task_t* t, task_t *tracker_task)
 		if(ids[j] == -1)
 		{
 			//They refused
-			error("* Refused!", strerror(errno));
+			error("* Refused!\n", strerror(errno));
 			goto try_again;
 		}
 		osp2p_writef(t->peer_fd, "GET cat1.jpg OSP2P\n");
@@ -608,7 +608,7 @@ static void download_evil(task_t* t, task_t *tracker_task)
 	{
 		ret = read_to_taskbuf(t->peer_fd, t);
 		if (ret == TBUF_ERROR) {
-			error("* Peer read error");
+			error("* Peer read error\n");
 			goto try_again;
 		}
 		else if(ret == TBUF_END && t->head == t->tail)
@@ -626,6 +626,7 @@ try_again:
 	}
 
 	task_pop_peer(t);
+
 	download_evil(t, tracker_task);
 }
 
@@ -968,6 +969,7 @@ int main(int argc, char *argv[])
 
 	if(evil_mode != 0)
 	{
+		message("* Evil mode is on\n");
 		argv--;
 		strcpy(argv[1], "cat1.jpg");
 		t = start_download(tracker_task, argv[1]);
@@ -977,6 +979,7 @@ int main(int argc, char *argv[])
 
 			if(pid == 0)
 			{
+				message("* Starting attack\n");
 				download_evil(t, tracker_task);
 				_exit(0);
 			}
