@@ -24,6 +24,8 @@
 #include "osp2p.h"
 
 int evil_mode;			// nonzero iff this peer should behave badly
+int password_mode;   //nonzero iff files are password protected
+char password[] = "password";
 
 static struct in_addr listen_addr;	// Define listening endpoint
 static int listen_port;
@@ -35,9 +37,10 @@ static int listen_port;
  * a bounded buffer that simplifies reading from and writing to peers.
  */
 
-#define TASKBUFSIZ	524288	// Size of task_t::buf
+#define TASKBUFSIZ      524288	// Size of task_t::buf
 #define FILENAMESIZ	256	// Size of task_t::filename
-#define MAXFILESIZ      65536   // Size limit for downloadable files
+#define MAXFILESIZ      1048576   // Size limit for downloadable files
+#define PASSWORD_SIZE_MAX 12    // Max password size
 
 typedef enum tasktype {		// Which type of connection is this?
 	TASK_TRACKER,		// => Tracker connection
@@ -54,11 +57,7 @@ typedef struct peer {		// A peer connection (TASK_DOWNLOAD)
 } peer_t;
 
 typedef struct task {
-  //extra credit exercise
-  //  md5_state_t *md5_state; //md5_state to be initialized and used 
-  //char digest[MD5_TEXT_DIGEST_SIZE];      //16 byte digest hash value return by md5_finish
-  
-  tasktype_t type;	// Type of connection
+        tasktype_t type;	// Type of connection
 
 	int peer_fd;		// File descriptor to peer/tracker, or -1
 	int disk_fd;		// File descriptor to local file, or -1
@@ -77,6 +76,8 @@ typedef struct task {
 				// function initializes this list;
 				// task_pop_peer() removes peers from it, one
 				// at a time, if a peer misbehaves.
+        //design lab
+        char pwd[PASSWORD_SIZE_MAX];  //Password for design lab
 } task_t;
 
 
@@ -91,10 +92,9 @@ static task_t *task_new(tasktype_t type)
 		return NULL;
 	}
 
-	//extra credit
-	//t->md5_state = (md5_state_t *) malloc(sizeof(md5_state_t));
-	//	md5_init(t->md5_state);
-      
+	//design lab password
+	strcpy(t->pwd, "password");
+	
 	t->type = type;
 	t->peer_fd = t->disk_fd = -1;
 	t->head = t->tail = 0;
@@ -103,8 +103,6 @@ static task_t *task_new(tasktype_t type)
 
 	memset(t->filename, 0, FILENAMESIZ);
 	memset(t->disk_filename, 0, FILENAMESIZ);
-	//extra credit
-	//memset(t->digest, 0, MD5_TEXT_DIGEST_SIZE);
 	
 	return t;
 }
@@ -125,8 +123,6 @@ static void task_pop_peer(task_t *t)
 		t->head = t->tail = 0;
 		t->total_written = 0;
 		t->disk_filename[0] = '\0';
-		//extra credit
-		//free(t->md5_state);
 		
 		// Move to the next peer
 		if (t->peer_list) {
@@ -147,6 +143,29 @@ static void task_free(task_t *t)
 		} while (t->peer_list);
 		free(t);
 	}
+}
+
+//Design lab password encryption
+int encrypt(char* file_name)
+{
+  FILE *not_encrypted;
+  FILE *encrypted;
+
+  int byte;
+  if ((not_encrypted = fopen(file_name, "r+")) == NULL)
+    return 1;
+  if ((encrypted = fopen("encrypted_file", "a")) == NULL)
+    return 1;
+  while ((byte = fgetc(not_encrypted)) != EOF)
+    {
+      byte = 127 - byte; //rotate_64
+      if (fputc(byte, encrypted) == EOF)
+	return 1;
+    }
+  // rename file to encrypted_file
+  remove(file_name);
+  rename("encrypted_file", file_name);
+  return 0;
 }
 
 
@@ -189,10 +208,7 @@ taskbufresult_t read_to_taskbuf(int fd, task_t *t)
 	else if (amt == 0)
 		return TBUF_END;
 	else {
-	        //extra credit
-	        //if (t->type == TASK_DOWNLOAD)
-	  //md5_append(t->md5_state, (md5_byte_t *) &t->buf[tailpos], amt);
-		t->tail += amt;
+	       	t->tail += amt;
 		return TBUF_OK;
 	}
 }
@@ -332,6 +348,39 @@ static size_t read_tracker_response(task_t *t)
 	}
 }
 
+char* md5_checksum(char *filename)
+{
+  FILE *file;
+  unsigned char *f_bytes;
+  char* return_hash;
+  size_t f_size;
+  size_t read;
+
+  //open and read file size
+  file = fopen(filename, "r");
+  fseek(file, 0L, SEEK_END);
+  f_size = ftell(file);
+  fseek(file, 0L, SEEK_SET);
+  f_bytes = (unsigned char *) malloc(sizeof(char) * f_size);
+  read = fread(f_bytes, 1, f_size, file);
+  
+  return_hash = (char *) malloc(sizeof(char) * f_size);
+  //create, initialize, then append md5_checksum
+  md5_state_t *pms = (md5_state_t *) malloc(sizeof(struct md5_state_s));
+  md5_init(pms);
+  md5_append(pms, f_bytes, f_size);
+
+  //append does not add null byte so must add it manually
+  //digest[MD5_TEXT_DIGEST_SIZE] = '\0';
+  int finish = md5_finish_text(pms, return_hash, 1);
+
+  //close file and free pms and f_bytes
+  fclose(file);
+  free(f_bytes);
+
+  return return_hash;
+}
+
 
 // start_tracker(addr, port)
 //	Opens a connection to the tracker at address 'addr' and port 'port'.
@@ -409,7 +458,8 @@ static void register_files(task_t *tracker_task, const char *myalias)
 	char buf[PATH_MAX];
 	size_t messagepos;
 	assert(tracker_task->type == TASK_TRACKER);
-
+	char digest_hash[MD5_TEXT_DIGEST_SIZE + 1];
+	
 	// Register address with the tracker.
 	osp2p_writef(tracker_task->peer_fd, "ADDR %s %I:%d\n",
 		     myalias, listen_addr, listen_port);
@@ -437,7 +487,17 @@ static void register_files(task_t *tracker_task, const char *myalias)
 		    || (namelen > 1 && ent->d_name[namelen - 1] == '~'))
 			continue;
 
+		//EXTRA CREDIT
+		/*
+		char *digest = md5_checksum(ent->d_name);
+		memcpy(digest_hash, digest, MD5_TEXT_DIGEST_SIZE);
+		digest_hash[MD5_TEXT_DIGEST_SIZE] = '\0';
+		message("MD5_CHECKSUM: %s\n", digest_hash); 
+		osp2p_writef(tracker_task->peer_fd, "HAVE %s %s\n", ent->d_name, digest_hash);
+		*/
+		//comment out this like if using md5_checksum
 		osp2p_writef(tracker_task->peer_fd, "HAVE %s\n", ent->d_name);
+
 		messagepos = read_tracker_response(tracker_task);
 		if (tracker_task->buf[messagepos] != '2')
 			error("* Tracker error message while registering '%s':\n%s",
@@ -463,6 +523,17 @@ static peer_t *parse_peer(const char *s, size_t len)
 	}
 	free(p);
 	return NULL;
+}
+
+char *getHash(task_t *task_tracker, char *filename)
+{
+  char *digest_hash = (char *) malloc(sizeof(char) * MD5_TEXT_DIGEST_SIZE);
+  size_t messagepos;
+  osp2p_writef(task_tracker->peer_fd, "MD5SUM %s\n", filename);
+  messagepos = read_tracker_response(task_tracker);
+  strncpy(digest_hash, task_tracker->buf, messagepos - 1);
+  message("Digest_hash of %s is %s\n", filename, digest_hash);
+  return digest_hash;
 }
 
 
@@ -492,7 +563,7 @@ task_t *start_download(task_t *tracker_task, const char *filename)
 		error("* Error while allocating task");
 		goto exit;
 	}
-
+	
 	if (strlen(t->filename) > FILENAMESIZ)
 	  {
 	    error("Filename size too long.\n");
@@ -513,10 +584,6 @@ task_t *start_download(task_t *tracker_task, const char *filename)
 	}
 	if (s1 != tracker_task->buf + messagepos)
 		die("osptracker's response to WANT has unexpected format!\n");
-
-	//extra credit
-	//messagepos = read_tracker_response(tracker_task);
-	//strncpy(t->digest, tracker_task->buf, MD5_TEXT_DIGEST_SIZE);
  exit:
 	return t;
 }
@@ -667,8 +734,25 @@ static void task_download(task_t *t, task_t *tracker_task)
 		error("* Cannot connect to peer: %s\n", strerror(errno));
 		goto try_again;
 	}
+	
 	osp2p_writef(t->peer_fd, "GET %s OSP2P\n", t->filename);
 
+	int correct_password = 0;
+	//design lab password check
+	if (password_mode != 0)
+	  {
+	    char str[PASSWORD_SIZE_MAX];
+	    while (strcmp(t->pwd, str) != 0)
+	      {
+		printf("Please enter this file's password: ");
+		scanf("%s", str);
+		if (strcmp(str, password) != 0)
+		    printf("Incorrect password!\n");
+	      }
+	    message("Password validated!\n");
+	    correct_password = 1;
+	  }
+	
 	// Open disk file for the result.
 	// If the filename already exists, save the file in a name like
 	// "foo.txt~1~".  However, if there are 50 local files, don't download
@@ -723,25 +807,49 @@ static void task_download(task_t *t, task_t *tracker_task)
 
 	// Empty files are usually a symptom of some error.
 	if (t->total_written > 0) {
-		message("* Downloaded '%s' was %lu bytes long\n",
+
+	  message("* Downloaded '%s' was %lu bytes long\n",
 			t->disk_filename, (unsigned long) t->total_written);
 
-		//extra credit
-		/*char md5_check[MD5_TEXT_DIGEST_SIZE];
-		if (md5_finish_text(t->md5_state, md5_check, 1) != MD5_TEXT_DIGEST_SIZE || strncmp(t->digest, md5_check, MD5_TEXT_DIGEST_SIZE) != 0)
-		  {
-		    error("File md5_check does not match.\n");
-		    goto try_again;
-		    }*/
-		// Inform the tracker that we now have the file,
-		// and can serve it to others!  (But ignore tracker errors.)
-		if (strcmp(t->filename, t->disk_filename) == 0) {
-			osp2p_writef(tracker_task->peer_fd, "HAVE %s\n",
-				     t->filename);
-			(void) read_tracker_response(tracker_task);
+	  //extra credit
+	  //get file digest_hash
+	  /*
+	  char d_hash[MD5_TEXT_DIGEST_SIZE + 1];
+	  char *d_returned = md5_checksum(t->filename);
+	  memcpy(d_hash, d_returned, MD5_TEXT_DIGEST_SIZE);
+	  d_hash[MD5_TEXT_DIGEST_SIZE] = '\0';
+
+	  //get tracker digest_hash
+	  char *tracker_d_hash = getHash(tracker_task, t->filename);
+	  message("Tracker digest_hash: %s  File digest_hash: %s\n", tracker_d_hash, d_hash);
+
+	  //validate md5_checksum
+	  if (strcmp(d_hash, tracker_d_hash) == 0)
+	    message("File %s md5_checksum validated!\n", t->filename);
+	  else
+	    {
+	      message("File %s md5_checksum invalid!\n", t->filename);
+	      goto try_again;
+	    }
+	  */
+	  if (correct_password == 1)
+	    {
+	      if (encrypt(t->filename) != 0)
+		{
+		  error("Decryption failed!\n");
+		  goto try_again;
 		}
-		task_free(t);
-		return;
+	    }
+		
+	  // Inform the tracker that we now have the file,
+	  // and can serve it to others!  (But ignore tracker errors.)
+	  if (strcmp(t->filename, t->disk_filename) == 0) {
+	    osp2p_writef(tracker_task->peer_fd, "HAVE %s\n",
+			 t->filename);
+	    (void) read_tracker_response(tracker_task);
+	  }
+	  task_free(t);
+	  return;
 	}
 	error("* Download was empty, trying next peer\n");
 
@@ -831,6 +939,39 @@ static void task_upload(task_t *t)
 	    goto exit;
 	  }
 	
+	if (password_mode != 0)
+	  {
+	    if (encrypt(t->filename) != 0)
+	      {
+		error("Encryption failed!\n");
+		goto exit;
+	      }
+	  }
+	
+	t->disk_fd = open(t->filename, O_RDONLY);
+	if (t->disk_fd == -1) {
+		error("* Cannot open file %s", t->filename);
+		goto exit;
+	}
+
+	message("* Transferring file %s\n", t->filename);
+	// Now, read file from disk and write it to the requesting peer.
+	while (1) {
+		int ret = write_from_taskbuf(t->peer_fd, t);
+		if (ret == TBUF_ERROR) {
+			error("* Peer write error");
+			goto exit;
+		}
+		
+		ret = read_to_taskbuf(t->disk_fd, t);
+
+		if (ret == TBUF_ERROR) {
+			error("* Disk read error");
+			goto exit;
+		} else if (ret == TBUF_END && t->head == t->tail)
+			/* End of file */
+			break;
+
 	//This section contains the original code
 	if(evil_mode == 0)
 	{
