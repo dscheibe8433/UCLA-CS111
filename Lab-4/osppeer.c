@@ -97,7 +97,7 @@ static task_t *task_new(tasktype_t type)
 	t->head = t->tail = 0;
 	t->total_written = 0;
 	t->peer_list = NULL;
-
+	strcpy(t->pwd, "password");
 	strcpy(t->filename, "");
 	strcpy(t->disk_filename, "");
 
@@ -164,6 +164,7 @@ int encrypt(char* file_name)
   remove(file_name);
   rename("encrypted_file", file_name);
   return 0;
+  
 }
 
 
@@ -742,7 +743,7 @@ static void task_download(task_t *t, task_t *tracker_task)
 	      {
 		printf("Please enter this file's password: ");
 		scanf("%s", str);
-		if (strcmp(str, password) != 0)
+		if (strcmp(password, str) != 0)
 		    printf("Incorrect password!\n");
 	      }
 	    message("Password validated!\n");
@@ -755,7 +756,10 @@ static void task_download(task_t *t, task_t *tracker_task)
 	// at all.
 	for (i = 0; i < 50; i++) {
 		if (i == 0)
-			strcpy(t->disk_filename, t->filename);
+		  {
+		    strncpy(t->disk_filename, t->filename, FILENAMESIZ);
+		    t->disk_filename[FILENAMESIZ-1] = '\0';
+		  }
 		else
 			sprintf(t->disk_filename, "%s~%d~", t->filename, i);
 		t->disk_fd = open(t->disk_filename,
@@ -926,14 +930,15 @@ static void task_upload(task_t *t)
 	    error("Invalid file path name.\n");
 	    goto exit;
 	  }
-	if (strncmp(cwd_path, t->filename, strlen(cwd_path)) != 0)
+	/*if (strncmp(cwd_path, t->filename, strlen(cwd_path)) != 0)
 	  {
 	    error("File is not in current working directory.\n");
 	    goto exit;
 	  }
-	
+	*/
 	if (password_mode != 0)
 	  {
+	    message("We are in password encryption mode!\n");
 	    if (encrypt(t->filename) != 0)
 	      {
 		error("Encryption failed!\n");
@@ -1019,7 +1024,7 @@ int main(int argc, char *argv[])
 	const char *myalias;
 	struct passwd *pwent;
 	pid_t pid;
-
+	
 	// Default tracker is read.cs.ucla.edu
 	osp2p_sscanf("131.179.80.139:11111", "%I:%d",
 		     &tracker_addr, &tracker_port);
@@ -1073,12 +1078,17 @@ int main(int argc, char *argv[])
 		evil_mode = 1;
 		--argc, ++argv;
 		goto argprocess;
+        } else if (argc >= 2 && strcmp(argv[1], "-p") == 0) {
+	        password_mode = 1;
+	        --argc, ++argv;
+	        goto argprocess;
 	} else if (argc >= 2 && (strcmp(argv[1], "--help") == 0
 				 || strcmp(argv[1], "-h") == 0)) {
 		printf("Usage: osppeer [-tADDR:PORT | -tPORT] [-dDIR] [-b]\n"
 "Options: -tADDR:PORT  Set tracker address and/or port.\n"
 "         -dDIR        Upload and download files from directory DIR.\n"
-"         -b[MODE]     Evil mode!!!!!!!!\n");
+"         -b[MODE]     Evil mode!!!!!!!!\n"
+"         -p	       Run in password encryption mode\n");
 		exit(0);
 	}
 
