@@ -80,7 +80,7 @@ typedef struct task {
         char pwd[PASSWORD_SIZE_MAX];  //Password for design lab
 
 	//Extra Credit
-	md_state_t* md_state;
+	md5_state_t* md5_state;
 	char checksum[MD5_TEXT_DIGEST_SIZE+1];	//For the tracker
 
 } task_t;
@@ -131,7 +131,7 @@ static void task_pop_peer(task_t *t)
 		t->head = t->tail = 0;
 		t->total_written = 0;
 		t->disk_filename[0] = '\0';
-		free(md5_state);
+		free(t->md5_state);
 
 		// Move to the next peer
 		if (t->peer_list) {
