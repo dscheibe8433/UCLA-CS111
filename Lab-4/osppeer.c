@@ -78,6 +78,11 @@ typedef struct task {
 				// at a time, if a peer misbehaves.
 	//design lab
         char pwd[PASSWORD_SIZE_MAX];  //Password for design lab
+
+	//Extra Credit
+	md_state_t* md_state;
+	char checksum[MD5_TEXT_DIGEST_SIZE+1];	//For the tracker
+
 } task_t;
 
 
@@ -101,6 +106,12 @@ static task_t *task_new(tasktype_t type)
 	strcpy(t->filename, "");
 	strcpy(t->disk_filename, "");
 
+	//Extra Credit
+	//Initialize the added parts from task struct
+	t->md5_state = (md5_state_t*)malloc(sizeof(md5_state_t));
+	md5_init(t->md5_state);
+	memset(t->checksum, 0, MD5_TEXT_DIGEST_SIZE+1);
+
 	return t;
 }
 
@@ -120,6 +131,7 @@ static void task_pop_peer(task_t *t)
 		t->head = t->tail = 0;
 		t->total_written = 0;
 		t->disk_filename[0] = '\0';
+		free(md5_state);
 
 		// Move to the next peer
 		if (t->peer_list) {
@@ -198,6 +210,10 @@ taskbufresult_t read_to_taskbuf(int fd, task_t *t)
 		amt = read(fd, &t->buf[tailpos], TASKBUFSIZ - tailpos);
 	else
 		amt = read(fd, &t->buf[tailpos], headpos - tailpos);
+
+	//Append download data to the md5_state
+	if(t->type == TASK_DOWNLOAD)
+		md5_append(t->md5_state, (md5_byte_t*)&t->buf[tailpos], amt);
 
 	if (amt == -1 && (errno == EINTR || errno == EAGAIN
 			  || errno == EWOULDBLOCK))
@@ -589,6 +605,16 @@ task_t *start_download(task_t *tracker_task, const char *filename)
 	if (s1 != tracker_task->buf + messagepos)
 		die("osptracker's response to WANT has unexpected format!\n");
 
+	//Get the checksum from tracker
+	osp2p_writef(tracker_task->peer_fd, "MD5SUM %s\n", t->filename);
+	messagepos = read_tracker_response(tracker_task);
+	if(tracker_task->buf[messagepos] != '2')
+	{
+		error("* Error with tracker's checksum");
+		goto exit;
+	}
+	strncpy(t->checksum, tracker_task->buf, MD5_TEXT_DIGEST_SIZE);
+
  exit:
 	return t;
 }
@@ -808,27 +834,23 @@ static void task_download(task_t *t, task_t *tracker_task)
 		message("* Downloaded '%s' was %lu bytes long\n",
 			t->disk_filename, (unsigned long) t->total_written);
 		
-	  //extra credit
-	  //get file digest_hash
-	  /*
-	  char d_hash[MD5_TEXT_DIGEST_SIZE + 1];
-	  char *d_returned = md5_checksum(t->filename);
-	  memcpy(d_hash, d_returned, MD5_TEXT_DIGEST_SIZE);
-	  d_hash[MD5_TEXT_DIGEST_SIZE] = '\0';
+	  //extra credit: Verify File Integrity
 
-	  //get tracker digest_hash
-	  char *tracker_d_hash = getHash(tracker_task, t->filename);
-	  message("Tracker digest_hash: %s  File digest_hash: %s\n", tracker_d_hash, d_hash);
+	  char hash[MD5_TEXT_DIGEST_SIZE + 1];
+	  memset(hash, 0, MD5_TEXT_DIGEST_SIZE+1);
 
-	  //validate md5_checksum
-	  if (strcmp(d_hash, tracker_d_hash) == 0)
-	    message("File %s md5_checksum validated!\n", t->filename);
+	  int s = md5_finish_text(t->md5_state, hash, 1);
+
+	  if(s == MD5_TEXT_DIGEST_SIZE && strncmp(t->checksum, hash, MD5_TEXT_DIGEST_SIZE) == 0)
+	  {
+		  message("File %s md5_checksum validated!\n", t->filename);
+	  }
 	  else
-	    {
-	      message("File %s md5_checksum invalid!\n", t->filename);
+	  {
+		  message("File %s md5_checksum invalid!\n", t->filename);
 	      goto try_again;
-	    }
-	  */
+	  }
+
 	  if (correct_password == 1)
 	    {
 	      if (encrypt(t->filename) != 0)
